@@ -3,31 +3,12 @@ const express = require('express');
 const { paymentMiddleware } = require('x402-express');
 
 const app = express();
-const port = process.env.SERVER_PORT || 3001;
+
 const payTo = process.env.SERVER_PAY_TO_ADDRESS;
-const facilitator = process.env.X402_FACILITATOR_URL;
+const facilitator = process.env.X402_FACILITATOR_URL || 'https://x402.org/facilitator';
 
 // Middleware para JSON
 app.use(express.json());
-
-// === ROTAS PROTEGIDAS COM X402 ===
-app.use(paymentMiddleware(payTo, {
-  "GET /api/clima": {
-    price: "$0.01",
-    network: "base-sepolia",
-    description: "Dados de clima em tempo real"
-  },
-  "GET /api/clima/detalhado": {
-    price: "$0.01",
-    network: "base-sepolia",
-    description: "Previsão detalhada de 7 dias"
-  },
-  "GET /api/clima/alertas": {
-    price: "$0.01",
-    network: "base-sepolia",
-    description: "Alertas meteorológicos"
-  }
-}, { url: facilitator }));
 
 // === DADOS DE CIDADES ===
 const cidades = {
@@ -54,7 +35,49 @@ function getClimaAleatorio(cidade = 'sp') {
   };
 }
 
+// === ROTAS PROTEGIDAS COM X402 ===
+if (payTo) {
+  app.use(paymentMiddleware(payTo, {
+    "GET /api/clima": {
+      price: "$0.01",
+      network: "base-sepolia",
+      description: "Dados de clima em tempo real"
+    },
+    "GET /api/clima/detalhado": {
+      price: "$0.01",
+      network: "base-sepolia",
+      description: "Previsão detalhada de 7 dias"
+    },
+    "GET /api/clima/alertas": {
+      price: "$0.01",
+      network: "base-sepolia",
+      description: "Alertas meteorológicos"
+    }
+  }, { url: facilitator }));
+}
+
 // === ROTAS DA API ===
+
+// Rota raiz - Bem-vindo
+app.get("/", (req, res) => {
+  res.json({
+    nome: "API Clima X402",
+    versao: "1.0.0",
+    status: "online",
+    rotas: {
+      gratis: [
+        "GET /api/cidades",
+        "GET /health"
+      ],
+      pagas: [
+        "GET /api/clima?cidade=sp ($0.01)",
+        "GET /api/clima/detalhado?cidade=rj ($0.01)",
+        "GET /api/clima/alertas?cidade=bh ($0.01)"
+      ]
+    },
+    documentacao: "Adicione ?cidade=sp para escolher a cidade"
+  });
+});
 
 // Rota 1: Clima básico
 app.get("/api/clima", (req, res) => {
@@ -134,15 +157,5 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Inicia servidor
-app.listen(port, () => {
-  console.log(`\n🌤️  API Clima X402 iniciada!`);
-  console.log(`✅ Servidor: http://localhost:${port}`);
-  console.log(`💰 Recebendo em: ${payTo}`);
-  console.log(`\n📍 Rotas disponíveis:`);
-  console.log(`   GET /api/clima?cidade=sp ($0.01)`);
-  console.log(`   GET /api/clima/detalhado?cidade=rj ($0.05)`);
-  console.log(`   GET /api/clima/alertas?cidade=bh ($0.02)`);
-  console.log(`   GET /api/cidades (grátis)`);
-  console.log(`   GET /health (grátis)\n`);
-});
+// Exporta para Vercel
+module.exports = app;
